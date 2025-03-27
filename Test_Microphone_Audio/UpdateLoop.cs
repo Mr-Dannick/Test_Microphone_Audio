@@ -7,20 +7,17 @@ namespace Test_Microphone_Audio
 {
     public class UpdateLoop
     {
-        private static UpdateLoop _instance;
+        private static UpdateLoop? _instance;
         private DispatcherTimer _timer;
         private event Action OnUpdate;
         private event Action<float, float> OnVolumeFrequencyUpdate;
         
         // Audio analysis values
-        private float _currentVolume = 0f;
-        private float _dominantFrequency = 0f;
-        private float _lastValidFrequency = 0f;
+        private float _currentVolume;
+        private float _dominantFrequency;
+        private float _lastValidFrequency;
 
         // Windows Core Audio API imports
-        [DllImport("winmm.dll")]
-        private static extern int waveInGetNumDevs();
-
         [DllImport("winmm.dll")]
         private static extern int waveInOpen(out IntPtr hWaveIn, int uDeviceID, ref WaveFormat lpFormat, 
             WaveInProcDelegate dwCallback, IntPtr dwCallbackInstance, int dwFlags);
