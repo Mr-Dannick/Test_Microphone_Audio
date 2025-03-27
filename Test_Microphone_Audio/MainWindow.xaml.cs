@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,7 +23,10 @@ public partial class MainWindow : Window
 {
     private Rectangle _innerRectangle;
     private Ellipse _circle;
-    private bool _grow = true;
+    private TextBlock _frequencyDisplay;
+    private Color _lastColor = Colors.Blue;
+    private const int MAX_HEIGHT = 300;
+    
     public MainWindow()
     {
         InitializeComponent();
@@ -38,7 +42,16 @@ public partial class MainWindow : Window
         };
         canvas.Children.Add(title);
 
-        _circle = new Ellipse { Width = 100, Height = 100, Fill = Brushes.Red };
+        // Add frequency display
+        _frequencyDisplay = new TextBlock
+        {
+            Text = "Frequency: 0 Hz",
+            FontSize = 16,
+            Margin = new Thickness(10, 70, 10, 10)
+        };
+        canvas.Children.Add(_frequencyDisplay);
+
+        _circle = new Ellipse { Width = 100, Height = 100, Fill = Brushes.Blue };
         Canvas.SetTop(_circle, 150);
         Canvas.SetLeft(_circle, 250);
         canvas.Children.Add(_circle);
@@ -58,42 +71,63 @@ public partial class MainWindow : Window
         _innerRectangle = new Rectangle
         {
             Width = 30,
-            Height = 100,
+            Height = 0, // Start at zero height
             Fill = Brushes.Blue
         };
         Canvas.SetRight(_innerRectangle, 20);
         Canvas.SetBottom(_innerRectangle, 50); // Positioning it on top of the outerRectangle
         canvas.Children.Add(_innerRectangle);
 
-        UpdateLoop.Instance.Subscribe(SetInnerRectangleSize);
+        // Subscribe to volume and frequency updates
+        UpdateLoop.Instance.SubscribeWithVolumeAndFrequency(UpdateVolumeAndFrequencyVisualization);
     }
 
-    private void SetInnerRectangleSize()
+    private void UpdateVolumeAndFrequencyVisualization(float volume, float frequency)
     {
-        // increase to max 100 and decrease to min 0 over time
-        var tick = (int)_innerRectangle.Height;
-        var max = 300;
-        var min = 0;
-
-        if (tick < max && _grow)
+        // Update the UI on the dispatcher thread
+        Dispatcher.Invoke(() => 
         {
-            tick++;
-            _innerRectangle.Height = tick;
-        }
-        else if (tick > min && !_grow)
-        {
-            tick--;
-            _innerRectangle.Height = tick;
-        }
-        else
-        {
-            _grow = !_grow;
-        }
+            // Amplify the volume to make it more sensitive, with a maximum of 1.0
+            // Using a higher multiplier (10.0) and taking the square root for more linear sensitivity
+            float amplifiedVolume = Math.Min((float)Math.Sqrt(volume) * 10.0f, 1.0f);
+            
+            // Scale the amplified volume to the height of the rectangle
+            double newHeight = amplifiedVolume * MAX_HEIGHT;
+            
+            // Add smoothing for more natural movement
+            newHeight = _innerRectangle.Height * 0.3 + newHeight * 0.7;
+            
+            // Set the new height
+            _innerRectangle.Height = newHeight;
+            
+            // Update the frequency display - always display the frequency (held or current)
+            _frequencyDisplay.Text = $"Frequency: {frequency:F0} Hz";
+            
+            // Update circle color based on frequency if we have a valid frequency
+            if (frequency > 0)
+            {
+                // Map frequency to color (20Hz-4000Hz)
+                // Low frequencies = red, high frequencies = blue
+                float normalizedFreq = Math.Min(Math.Max(frequency - 20, 0) / 3980, 1.0f);
+                
+                byte red = (byte)(255 * (1 - normalizedFreq));
+                byte blue = (byte)(255 * normalizedFreq);
+                
+                _lastColor = Color.FromRgb(red, 0, blue);
+                _circle.Fill = new SolidColorBrush(_lastColor);
+            }
+            // The color is already held by keeping _lastColor
+        });
     }
 
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
-        UpdateLoop.Instance.Unsubscribe(SetInnerRectangleSize);
+        
+        // Unsubscribe from volume and frequency updates
+        UpdateLoop.Instance.UnsubscribeWithVolumeAndFrequency(UpdateVolumeAndFrequencyVisualization);
+        
+        // Dispose of the UpdateLoop resources
+        UpdateLoop.Instance.Dispose();
     }
 }
