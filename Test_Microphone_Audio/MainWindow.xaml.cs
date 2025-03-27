@@ -1,13 +1,17 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Timer = System.Timers.Timer;
 
 namespace Test_Microphone_Audio;
 
@@ -16,6 +20,9 @@ namespace Test_Microphone_Audio;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private Rectangle _innerRectangle;
+    private Ellipse _circle;
+    private bool _grow = true;
     public MainWindow()
     {
         InitializeComponent();
@@ -31,10 +38,10 @@ public partial class MainWindow : Window
         };
         canvas.Children.Add(title);
 
-        var circle = new Ellipse { Width = 100, Height = 100, Fill = Brushes.Red };
-        Canvas.SetTop(circle, 150);
-        Canvas.SetLeft(circle, 250);
-        canvas.Children.Add(circle);
+        _circle = new Ellipse { Width = 100, Height = 100, Fill = Brushes.Red };
+        Canvas.SetTop(_circle, 150);
+        Canvas.SetLeft(_circle, 250);
+        canvas.Children.Add(_circle);
 
         var outerRectangle = new Rectangle
         {
@@ -48,16 +55,45 @@ public partial class MainWindow : Window
         Canvas.SetBottom(outerRectangle, 50);
         canvas.Children.Add(outerRectangle);
 
-        var innerRectangle = new Rectangle
+        _innerRectangle = new Rectangle
         {
             Width = 30,
             Height = 100,
             Fill = Brushes.Blue
         };
-        Canvas.SetRight(innerRectangle, 20);
-        Canvas.SetBottom(innerRectangle, 50); // Positioning it on top of the outerRectangle
-        canvas.Children.Add(innerRectangle);
-        
+        Canvas.SetRight(_innerRectangle, 20);
+        Canvas.SetBottom(_innerRectangle, 50); // Positioning it on top of the outerRectangle
+        canvas.Children.Add(_innerRectangle);
 
+        UpdateLoop.Instance.Subscribe(SetInnerRectangleSize);
+    }
+
+    private void SetInnerRectangleSize()
+    {
+        // increase to max 100 and decrease to min 0 over time
+        var tick = (int)_innerRectangle.Height;
+        var max = 300;
+        var min = 0;
+
+        if (tick < max && _grow)
+        {
+            tick++;
+            _innerRectangle.Height = tick;
+        }
+        else if (tick > min && !_grow)
+        {
+            tick--;
+            _innerRectangle.Height = tick;
+        }
+        else
+        {
+            _grow = !_grow;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        UpdateLoop.Instance.Unsubscribe(SetInnerRectangleSize);
     }
 }
